@@ -1,0 +1,20 @@
+{
+  "ServiceName": "eco-server",
+  "ResourceAttributes": {
+    "deployment.environment": "production",
+    "service.namespace": "games"
+  },
+
+  "OtlpEndpoint": "",
+  "OtlpProtocol": "HttpProtobuf",
+  "OtlpHeaders": "",
+
+  "EnableLogs": true,
+  "EnableMetrics": false,
+  "EnableTraces": false,
+
+  "MetricsIntervalSeconds": 15,
+
+  "FirstChanceExceptionsEnabled": false,
+  "InterceptLogWriter": true
+}

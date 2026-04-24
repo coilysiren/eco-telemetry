@@ -1,0 +1,10 @@
+bin/
+obj/
+out/
+*.user
+*.suo
+.vs/
+.idea/
+.vscode/
+*.swp
+.DS_Store
