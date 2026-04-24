@@ -5,9 +5,17 @@
     "service.namespace": "games"
   },
 
+  // Generic OTLP target. Point at any OTLP/HTTP collector.
   "OtlpEndpoint": "",
   "OtlpProtocol": "HttpProtobuf",
   "OtlpHeaders": "",
+
+  // Sentry OTLP example (uncomment and fill in):
+  //   "OtlpEndpoint": "https://o<org-id>.ingest.us.sentry.io/api/<project-id>/otlp/v1/logs",
+  //   "OtlpProtocol": "HttpProtobuf",
+  //   "OtlpHeaders": "x-sentry-auth=Sentry sentry_key=<dsn-public-key>"
+  // Pull <org-id>, <project-id>, and <dsn-public-key> out of the project DSN. The matching traces
+  // endpoint is .../otlp/v1/traces; keep it pointed at /v1/logs while traces are stubbed.
 
   "EnableLogs": true,
   "EnableMetrics": false,
