@@ -103,21 +103,26 @@ internal sealed class TelemetryPipeline : IDisposable
         else
         {
             Console.Error.WriteLine($"[EcoTelemetry] StartMetrics: attaching OTLP exporter to {this.config.ResolvedMetricsEndpoint}");
-            // Use the single-arg overload (Action<OtlpExporterOptions>). The
-            // two-arg overload (Action<OtlpExporterOptions, MetricReaderOptions>)
-            // wasn't producing a visible reader in the pipeline; switching to
-            // the simpler shape and configuring reader interval via the
-            // OTEL_METRIC_EXPORT_INTERVAL env var instead. Set in
-            // eco-server.service systemd Environment= once #5 closes.
-            builder.AddOtlpExporter(otlp =>
+            // Both AddOtlpExporter overloads (single-arg and two-arg) silently
+            // failed to add a reader to the pipeline despite Build returning
+            // OK. Construct the exporter + reader manually and pass it to
+            // builder.AddReader directly, bypassing the helper's
+            // ConfigureBuilder/ConfigureServices indirection. Refs #5.
+            var otlpOptions = new OtlpExporterOptions();
+            ConfigureOtlp(
+                otlpOptions,
+                this.config.ResolvedMetricsEndpoint,
+                this.config.ResolvedMetricsProtocol,
+                this.config.ResolvedMetricsHeaders);
+            var otlpExporter = new OtlpMetricExporter(otlpOptions);
+            var otlpReader = new PeriodicExportingMetricReader(
+                otlpExporter,
+                exportIntervalMilliseconds: this.config.MetricsIntervalSeconds * 1000)
             {
-                ConfigureOtlp(
-                    otlp,
-                    this.config.ResolvedMetricsEndpoint,
-                    this.config.ResolvedMetricsProtocol,
-                    this.config.ResolvedMetricsHeaders);
-            });
-            Console.Error.WriteLine("[EcoTelemetry] StartMetrics: AddOtlpExporter returned");
+                TemporalityPreference = MetricReaderTemporalityPreference.Cumulative,
+            };
+            builder.AddReader(otlpReader);
+            Console.Error.WriteLine("[EcoTelemetry] StartMetrics: manual OTLP reader added");
 
             // Diagnostic: also emit to console alongside OTLP. Lets us see
             // exactly what the SDK is generating per export tick when an
