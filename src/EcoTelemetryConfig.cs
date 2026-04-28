@@ -50,6 +50,12 @@ public sealed class EcoTelemetryConfig
     public int MetricsIntervalSeconds { get; set; } = 15;
 
     /// <summary>
+    /// When true and an OTLP metrics endpoint is configured, also attach a console exporter so each export tick is
+    /// visible in the host log. Diagnostic only - leaves a duplicate in stdout. Off by default.
+    /// </summary>
+    public bool EmitConsoleAlongsideOtlp { get; set; } = false;
+
+    /// <summary>
     /// Subscribe to AppDomain.FirstChanceException. Catches every thrown exception, including caught ones.
     /// High-volume on a busy server. Off by default; flip on for short diagnostic windows.
     /// </summary>

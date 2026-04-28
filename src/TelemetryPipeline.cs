@@ -88,6 +88,7 @@ internal sealed class TelemetryPipeline : IDisposable
         var builder = Sdk.CreateMeterProviderBuilder()
             .SetResourceBuilder(this.resourceBuilder!)
             .AddMeter(MeterName)
+            .AddMeter("OpenTelemetry.Instrumentation.Runtime")
             .AddRuntimeInstrumentation();
 
         if (string.IsNullOrWhiteSpace(this.config.ResolvedMetricsEndpoint))
@@ -106,6 +107,15 @@ internal sealed class TelemetryPipeline : IDisposable
                 reader.PeriodicExportingMetricReaderOptions.ExportIntervalMilliseconds =
                     this.config.MetricsIntervalSeconds * 1000;
             });
+
+            // Diagnostic: also emit to console alongside OTLP. Lets us see
+            // exactly what the SDK is generating per export tick when an
+            // OTLP-side issue isn't immediately obvious. Trim once the
+            // pipeline is proven end-to-end (#5).
+            if (this.config.EmitConsoleAlongsideOtlp)
+            {
+                builder.AddConsoleExporter();
+            }
         }
 
         this.MeterProvider = builder.Build();
