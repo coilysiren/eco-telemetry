@@ -128,19 +128,28 @@ internal sealed class TelemetryPipeline : IDisposable
             // can reach it before the periodic exporter starts. Failure here
             // is the same network failure the exporter would hit silently.
             // Refs #5.
+            // Persist smoke-probe result to a file so we can read it via
+            // coily ssh cat after the journal has rotated past the
+            // start-of-day window. Refs #5.
+            var smokePath = "Logs/EcoTelemetry/smoke-probe.txt";
             try
             {
+                System.IO.Directory.CreateDirectory("Logs/EcoTelemetry");
                 using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
                 using var req = new System.Net.Http.HttpRequestMessage(
                     System.Net.Http.HttpMethod.Post, this.config.ResolvedMetricsEndpoint);
                 req.Content = new System.Net.Http.ByteArrayContent(Array.Empty<byte>());
                 req.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/x-protobuf");
                 var resp = http.Send(req);
-                Console.Error.WriteLine($"[EcoTelemetry] StartMetrics: smoke probe to {this.config.ResolvedMetricsEndpoint} -> HTTP {(int)resp.StatusCode}");
+                var msg = $"{DateTime.UtcNow:O} smoke probe to {this.config.ResolvedMetricsEndpoint} -> HTTP {(int)resp.StatusCode}";
+                Console.Error.WriteLine($"[EcoTelemetry] {msg}");
+                System.IO.File.WriteAllText(smokePath, msg + Environment.NewLine);
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[EcoTelemetry] StartMetrics: smoke probe FAILED: {ex.GetType().Name}: {ex.Message}");
+                var msg = $"{DateTime.UtcNow:O} smoke probe FAILED: {ex.GetType().Name}: {ex.Message}";
+                Console.Error.WriteLine($"[EcoTelemetry] {msg}");
+                try { System.IO.File.WriteAllText(smokePath, msg + Environment.NewLine); } catch { }
             }
 
             // Diagnostic: also emit to console alongside OTLP. Lets us see
