@@ -103,16 +103,21 @@ internal sealed class TelemetryPipeline : IDisposable
         else
         {
             Console.Error.WriteLine($"[EcoTelemetry] StartMetrics: attaching OTLP exporter to {this.config.ResolvedMetricsEndpoint}");
-            builder.AddOtlpExporter((otlp, reader) =>
+            // Use the single-arg overload (Action<OtlpExporterOptions>). The
+            // two-arg overload (Action<OtlpExporterOptions, MetricReaderOptions>)
+            // wasn't producing a visible reader in the pipeline; switching to
+            // the simpler shape and configuring reader interval via the
+            // OTEL_METRIC_EXPORT_INTERVAL env var instead. Set in
+            // eco-server.service systemd Environment= once #5 closes.
+            builder.AddOtlpExporter(otlp =>
             {
                 ConfigureOtlp(
                     otlp,
                     this.config.ResolvedMetricsEndpoint,
                     this.config.ResolvedMetricsProtocol,
                     this.config.ResolvedMetricsHeaders);
-                reader.PeriodicExportingMetricReaderOptions.ExportIntervalMilliseconds =
-                    this.config.MetricsIntervalSeconds * 1000;
             });
+            Console.Error.WriteLine("[EcoTelemetry] StartMetrics: AddOtlpExporter returned");
 
             // Diagnostic: also emit to console alongside OTLP. Lets us see
             // exactly what the SDK is generating per export tick when an
