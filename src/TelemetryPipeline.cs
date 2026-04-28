@@ -124,6 +124,25 @@ internal sealed class TelemetryPipeline : IDisposable
             builder.AddReader(otlpReader);
             Console.Error.WriteLine("[EcoTelemetry] StartMetrics: manual OTLP reader added");
 
+            // Smoke-probe the endpoint synchronously so we know the runtime
+            // can reach it before the periodic exporter starts. Failure here
+            // is the same network failure the exporter would hit silently.
+            // Refs #5.
+            try
+            {
+                using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                using var req = new System.Net.Http.HttpRequestMessage(
+                    System.Net.Http.HttpMethod.Post, this.config.ResolvedMetricsEndpoint);
+                req.Content = new System.Net.Http.ByteArrayContent(Array.Empty<byte>());
+                req.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/x-protobuf");
+                var resp = http.Send(req);
+                Console.Error.WriteLine($"[EcoTelemetry] StartMetrics: smoke probe to {this.config.ResolvedMetricsEndpoint} -> HTTP {(int)resp.StatusCode}");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[EcoTelemetry] StartMetrics: smoke probe FAILED: {ex.GetType().Name}: {ex.Message}");
+            }
+
             // Diagnostic: also emit to console alongside OTLP. Lets us see
             // exactly what the SDK is generating per export tick when an
             // OTLP-side issue isn't immediately obvious. Trim once the
