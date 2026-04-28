@@ -16,7 +16,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <NoWarn>NETSDK1138</NoWarn>
+    <NoWarn>NETSDK1138;CA1416</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

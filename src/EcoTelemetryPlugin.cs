@@ -69,6 +69,10 @@ public sealed class EcoTelemetryPlugin : IInitializablePlugin, IShutdownablePlug
         }
 
         this.metricsWorker = new MetricsWorker(this.config, this.pipeline.Logger);
+        if (this.pipeline.Meter is { } meter)
+        {
+            this.metricsWorker.Install(meter);
+        }
     }
 
     public Task DoWork(CancellationToken token)

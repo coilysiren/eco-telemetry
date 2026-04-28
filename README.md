@@ -6,7 +6,12 @@ Eco's built-in stats system is designed for in-game economic and ecological repo
 
 ## Status
 
-Early. v1 ships exception capture end-to-end via OTLP. Metrics and traces are stubbed and tracked as follow-ups.
+Early. v1 ships:
+
+- **Logs:** exception capture (`AppDomain.UnhandledException`, optional `FirstChanceException`) and an Eco `ILogWriter` decorator that mirrors the server's own log lines through OTel.
+- **Metrics:** runtime instrumentation (GC, threadpool, allocations) plus `eco.players.online`. Each signal can route to its own OTLP endpoint via per-signal overrides.
+
+Traces are stubbed.
 
 ## Install
 
@@ -29,14 +34,25 @@ dotnet build EcoTelemetry.csproj -c Release
 
 The build pulls `Eco.ReferenceAssemblies` from NuGet for type-checking. The DLL plus its OpenTelemetry dependencies must be deployed together — see `.github/workflows/release.yml` for how the release artifact is assembled.
 
-## Sending to Sentry
+## Routing signals
 
-Sentry's OTLP endpoint is documented at <https://docs.sentry.io/platforms/javascript/install/cdn/#using-opentelemetry>. Set:
+Each signal (logs, metrics) can target its own OTLP endpoint via the `OtlpLogsEndpoint` / `OtlpMetricsEndpoint` overrides; anything left blank falls back to the top-level `OtlpEndpoint`. Empty everywhere means console exporter (handy for first-boot smoke test).
 
-- `OtlpEndpoint`: `https://o<org>.ingest.sentry.io/api/<project>/otlp/v1/logs` (and matching `/v1/traces` when traces ship)
-- `OtlpHeaders`: `x-sentry-auth=Sentry sentry_key=<dsn-public-key>`
+### Sentry (logs)
 
-Sentry is one OTLP destination among many. There is no Sentry-specific code path.
+Sentry's OTLP endpoint is documented at <https://docs.sentry.io/platforms/javascript/install/cdn/#using-opentelemetry>:
+
+- `OtlpLogsEndpoint`: `https://o<org>.ingest.sentry.io/api/<project>/otlp/v1/logs`
+- `OtlpLogsHeaders`: `x-sentry-auth=Sentry sentry_key=<dsn-public-key>`
+
+### VictoriaMetrics (metrics)
+
+vmsingle exposes a native OTLP ingest endpoint at `/opentelemetry/api/v1/push` on its HTTP API port (8428 by default). No auth header required.
+
+- `OtlpMetricsEndpoint`: `http://<vmsingle-host>:8428/opentelemetry/api/v1/push`
+- `OtlpMetricsProtocol`: `HttpProtobuf`
+
+Any OTLP-capable backend (Honeycomb, Grafana Cloud, OTel Collector) works the same way - there is no backend-specific code path.
 
 ## Public sources
 

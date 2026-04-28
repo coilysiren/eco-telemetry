@@ -4,21 +4,29 @@ namespace EcoTelemetry;
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 
 /// <summary>
 /// Owns the OTel SDK objects (LoggerFactory, MeterProvider, TracerProvider) for the lifetime of the plugin.
+/// Each signal can route to its own endpoint - logs to Sentry, metrics to VictoriaMetrics, etc.
 /// </summary>
 internal sealed class TelemetryPipeline : IDisposable
 {
+    public const string MeterName = "EcoTelemetry";
+
     public ILoggerFactory? LoggerFactory { get; private set; }
     public ILogger? Logger { get; private set; }
+    public MeterProvider? MeterProvider { get; private set; }
+    public Meter? Meter { get; private set; }
 
     private readonly EcoTelemetryConfig config;
+    private ResourceBuilder? resourceBuilder;
 
     public TelemetryPipeline(EcoTelemetryConfig config)
     {
@@ -27,45 +35,91 @@ internal sealed class TelemetryPipeline : IDisposable
 
     public void Start()
     {
-        var resourceBuilder = ResourceBuilder.CreateDefault()
-            .AddService(serviceName: this.config.ServiceName, serviceVersion: typeof(TelemetryPipeline).Assembly.GetName().Version?.ToString() ?? "0.0.0")
+        var version = typeof(TelemetryPipeline).Assembly.GetName().Version?.ToString() ?? "0.0.0";
+
+        this.resourceBuilder = ResourceBuilder.CreateDefault()
+            .AddService(serviceName: this.config.ServiceName, serviceVersion: version)
             .AddAttributes(BuildResourceAttributes());
 
         if (this.config.EnableLogs)
         {
-            this.LoggerFactory = Microsoft.Extensions.Logging.LoggerFactory.Create(builder =>
-            {
-                builder.AddOpenTelemetry(options =>
-                {
-                    options.IncludeFormattedMessage = true;
-                    options.IncludeScopes = true;
-                    options.ParseStateValues = true;
-                    options.SetResourceBuilder(resourceBuilder);
+            this.StartLogs();
+        }
 
-                    if (string.IsNullOrWhiteSpace(this.config.OtlpEndpoint))
-                    {
-                        options.AddConsoleExporter();
-                    }
-                    else
-                    {
-                        options.AddOtlpExporter(otlp => ConfigureOtlp(otlp));
-                    }
-                });
-            });
-
-            this.Logger = this.LoggerFactory.CreateLogger("EcoTelemetry");
+        if (this.config.EnableMetrics)
+        {
+            this.StartMetrics(version);
         }
     }
 
-    private void ConfigureOtlp(OtlpExporterOptions otlp)
+    private void StartLogs()
     {
-        otlp.Endpoint = new Uri(this.config.OtlpEndpoint);
-        otlp.Protocol = string.Equals(this.config.OtlpProtocol, "Grpc", StringComparison.OrdinalIgnoreCase)
+        this.LoggerFactory = Microsoft.Extensions.Logging.LoggerFactory.Create(builder =>
+        {
+            builder.AddOpenTelemetry(options =>
+            {
+                options.IncludeFormattedMessage = true;
+                options.IncludeScopes = true;
+                options.ParseStateValues = true;
+                options.SetResourceBuilder(this.resourceBuilder!);
+
+                if (string.IsNullOrWhiteSpace(this.config.ResolvedLogsEndpoint))
+                {
+                    options.AddConsoleExporter();
+                }
+                else
+                {
+                    options.AddOtlpExporter(otlp => ConfigureOtlp(
+                        otlp,
+                        this.config.ResolvedLogsEndpoint,
+                        this.config.ResolvedLogsProtocol,
+                        this.config.ResolvedLogsHeaders));
+                }
+            });
+        });
+
+        this.Logger = this.LoggerFactory.CreateLogger("EcoTelemetry");
+    }
+
+    private void StartMetrics(string version)
+    {
+        this.Meter = new Meter(MeterName, version);
+
+        var builder = Sdk.CreateMeterProviderBuilder()
+            .SetResourceBuilder(this.resourceBuilder!)
+            .AddMeter(MeterName)
+            .AddRuntimeInstrumentation();
+
+        if (string.IsNullOrWhiteSpace(this.config.ResolvedMetricsEndpoint))
+        {
+            builder.AddConsoleExporter();
+        }
+        else
+        {
+            builder.AddOtlpExporter((otlp, reader) =>
+            {
+                ConfigureOtlp(
+                    otlp,
+                    this.config.ResolvedMetricsEndpoint,
+                    this.config.ResolvedMetricsProtocol,
+                    this.config.ResolvedMetricsHeaders);
+                reader.PeriodicExportingMetricReaderOptions.ExportIntervalMilliseconds =
+                    this.config.MetricsIntervalSeconds * 1000;
+            });
+        }
+
+        this.MeterProvider = builder.Build();
+    }
+
+    private static void ConfigureOtlp(OtlpExporterOptions otlp, string endpoint, string protocol, string headers)
+    {
+        otlp.Endpoint = new Uri(endpoint);
+        otlp.Protocol = string.Equals(protocol, "Grpc", StringComparison.OrdinalIgnoreCase)
             ? OtlpExportProtocol.Grpc
             : OtlpExportProtocol.HttpProtobuf;
-        if (!string.IsNullOrWhiteSpace(this.config.OtlpHeaders))
+        if (!string.IsNullOrWhiteSpace(headers))
         {
-            otlp.Headers = this.config.OtlpHeaders;
+            otlp.Headers = headers;
         }
     }
 
@@ -79,6 +133,10 @@ internal sealed class TelemetryPipeline : IDisposable
 
     public void Dispose()
     {
+        this.MeterProvider?.Dispose();
+        this.MeterProvider = null;
+        this.Meter?.Dispose();
+        this.Meter = null;
         this.LoggerFactory?.Dispose();
         this.LoggerFactory = null;
         this.Logger = null;

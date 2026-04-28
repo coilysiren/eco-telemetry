@@ -5,17 +5,30 @@
     "service.namespace": "games"
   },
 
-  // Generic OTLP target. Point at any OTLP/HTTP collector.
+  // Default OTLP target. Used as a fallback when a per-signal endpoint is empty.
+  // For a single-backend setup, fill this in and leave the per-signal overrides blank.
   "OtlpEndpoint": "",
   "OtlpProtocol": "HttpProtobuf",
   "OtlpHeaders": "",
 
-  // Sentry OTLP example (uncomment and fill in):
-  //   "OtlpEndpoint": "https://o<org-id>.ingest.us.sentry.io/api/<project-id>/otlp/v1/logs",
-  //   "OtlpProtocol": "HttpProtobuf",
-  //   "OtlpHeaders": "x-sentry-auth=Sentry sentry_key=<dsn-public-key>"
-  // Pull <org-id>, <project-id>, and <dsn-public-key> out of the project DSN. The matching traces
-  // endpoint is .../otlp/v1/traces; keep it pointed at /v1/logs while traces are stubbed.
+  // Per-signal endpoints. Use these when logs and metrics route to different backends
+  // (e.g. logs to Sentry, metrics to VictoriaMetrics). Empty means "fall back to OtlpEndpoint above".
+  //
+  // Sentry logs example:
+  //   "OtlpLogsEndpoint": "https://o<org-id>.ingest.us.sentry.io/api/<project-id>/otlp/v1/logs",
+  //   "OtlpLogsProtocol": "HttpProtobuf",
+  //   "OtlpLogsHeaders": "x-sentry-auth=Sentry sentry_key=<dsn-public-key>",
+  //
+  // VictoriaMetrics example (no auth, native OTLP ingest):
+  //   "OtlpMetricsEndpoint": "http://<vmsingle-host>:8428/opentelemetry/api/v1/push",
+  //   "OtlpMetricsProtocol": "HttpProtobuf",
+  //   "OtlpMetricsHeaders": "",
+  "OtlpLogsEndpoint": "",
+  "OtlpLogsProtocol": "",
+  "OtlpLogsHeaders": "",
+  "OtlpMetricsEndpoint": "",
+  "OtlpMetricsProtocol": "",
+  "OtlpMetricsHeaders": "",
 
   "EnableLogs": true,
   "EnableMetrics": false,

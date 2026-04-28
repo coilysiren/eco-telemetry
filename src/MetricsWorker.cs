@@ -3,12 +3,16 @@
 namespace EcoTelemetry;
 
 using System;
+using System.Diagnostics.Metrics;
 using System.Threading;
 using System.Threading.Tasks;
+using Eco.Gameplay.Players;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
-/// Stub for the metrics surface. Helper invoked from <see cref="EcoTelemetryPlugin.DoWork"/>. v1 placeholder.
+/// Registers Eco-specific observable instruments on the supplied <see cref="Meter"/>.
+/// Gauges are pull-based: the OTel reader polls the callbacks on its export interval, so there's no per-tick work
+/// to do beyond keeping the worker thread alive until shutdown.
 /// </summary>
 internal sealed class MetricsWorker
 {
@@ -21,29 +25,36 @@ internal sealed class MetricsWorker
         this.logger = logger;
     }
 
-    public async Task TickAsync(CancellationToken token)
+    public void Install(Meter meter)
     {
-        if (!this.config.EnableMetrics)
-        {
-            await Task.Delay(TimeSpan.FromMinutes(5), token).ConfigureAwait(false);
-            return;
-        }
+        if (!this.config.EnableMetrics) return;
 
+        meter.CreateObservableGauge(
+            name: "eco.players.online",
+            observeValue: SafeOnlineUserCount,
+            unit: "{players}",
+            description: "Currently logged-in players.");
+
+        this.logger?.LogInformation("EcoTelemetry: registered metrics (eco.players.online + runtime).");
+    }
+
+    private static int SafeOnlineUserCount()
+    {
         try
         {
-            // TODO(metrics): poll and emit
-            //   - UserManager.OnlineUsers.Count → eco.players.online (gauge)
-            //   - WorldObjectManager.Obj counts → eco.world_objects.{type} (gauge)
-            //   - Simulation.Time.WorldTime.Seconds → eco.world.time_seconds (counter)
-            //   - GC and threadpool come for free via OpenTelemetry.Instrumentation.Runtime
-            //   - PluginManager.GetPlugin<Stats>() → derived economy counters
-            this.logger?.LogTrace("MetricsWorker tick (stub)");
+            return UserManager.Obj?.OnlineUserCount ?? 0;
         }
-        catch (Exception ex)
+        catch
         {
-            this.logger?.LogError(ex, "MetricsWorker tick failed");
+            // Eco's UserManager may not be ready during early init; report 0 rather than throwing into the OTel reader.
+            return 0;
         }
+    }
 
-        await Task.Delay(TimeSpan.FromSeconds(this.config.MetricsIntervalSeconds), token).ConfigureAwait(false);
+    public Task TickAsync(CancellationToken token)
+    {
+        // Worker is no longer the metrics driver - OTel's PeriodicExportingMetricReader polls observable instruments
+        // on its own interval. Just block until shutdown so IWorkerPlugin's loop stays parked.
+        return Task.Delay(Timeout.Infinite, token);
     }
 }
