@@ -91,12 +91,18 @@ internal sealed class TelemetryPipeline : IDisposable
             .AddMeter("OpenTelemetry.Instrumentation.Runtime")
             .AddRuntimeInstrumentation();
 
+        // Diagnostic prints while #5 is open. Goes to stdout -> journal so we
+        // can see exactly which branch the config resolution lands in.
+        Console.Error.WriteLine($"[EcoTelemetry] StartMetrics: ResolvedMetricsEndpoint=[{this.config.ResolvedMetricsEndpoint}] OtlpMetricsEndpoint=[{this.config.OtlpMetricsEndpoint}] OtlpEndpoint=[{this.config.OtlpEndpoint}] EmitConsoleAlongsideOtlp={this.config.EmitConsoleAlongsideOtlp}");
+
         if (string.IsNullOrWhiteSpace(this.config.ResolvedMetricsEndpoint))
         {
+            Console.Error.WriteLine("[EcoTelemetry] StartMetrics: empty endpoint -> Console-only exporter");
             builder.AddConsoleExporter();
         }
         else
         {
+            Console.Error.WriteLine($"[EcoTelemetry] StartMetrics: attaching OTLP exporter to {this.config.ResolvedMetricsEndpoint}");
             builder.AddOtlpExporter((otlp, reader) =>
             {
                 ConfigureOtlp(
@@ -114,11 +120,21 @@ internal sealed class TelemetryPipeline : IDisposable
             // pipeline is proven end-to-end (#5).
             if (this.config.EmitConsoleAlongsideOtlp)
             {
+                Console.Error.WriteLine("[EcoTelemetry] StartMetrics: also attaching Console exporter (EmitConsoleAlongsideOtlp=true)");
                 builder.AddConsoleExporter();
             }
         }
 
-        this.MeterProvider = builder.Build();
+        try
+        {
+            this.MeterProvider = builder.Build();
+            Console.Error.WriteLine("[EcoTelemetry] StartMetrics: MeterProvider built OK");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[EcoTelemetry] StartMetrics: MeterProvider build FAILED: {ex}");
+            throw;
+        }
     }
 
     private static void ConfigureOtlp(OtlpExporterOptions otlp, string endpoint, string protocol, string headers)
