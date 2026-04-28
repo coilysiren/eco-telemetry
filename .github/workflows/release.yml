@@ -34,12 +34,14 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          stage="staging/EcoTelemetry"
+          # Internal layout is Mods/EcoTelemetry/ so that `unzip -o` from
+          # the EcoServer root lands at EcoServer/Mods/EcoTelemetry/.
+          stage="staging/Mods/EcoTelemetry"
           mkdir -p "$stage"
           cp -r bin/Release/net10.0/. "$stage/"
           cp Configs/EcoTelemetry.example.json "$stage/"
           cp README.md LICENSE "$stage/"
-          (cd staging && zip -r "../EcoTelemetry-${VERSION}.zip" EcoTelemetry)
+          (cd staging && zip -r "../EcoTelemetry-${VERSION}.zip" Mods)
           ls -la "EcoTelemetry-${VERSION}.zip"
 
       - name: Publish release
