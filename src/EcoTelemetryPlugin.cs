@@ -15,7 +15,7 @@ using Microsoft.Extensions.Logging;
 /// <see cref="Initialize"/> once. v1 wires up the OTel pipeline plus the exception capture surface; metrics and
 /// traces are present as stubs.
 /// </summary>
-public sealed class EcoTelemetryPlugin : IInitializablePlugin, IShutdownablePlugin, IWorkerPlugin
+public sealed class EcoTelemetryPlugin : IModKitPlugin, IInitializablePlugin, IShutdownablePlugin, IWorkerPlugin
 {
     private const string ConfigPath = "Configs/EcoTelemetry.json";
 
