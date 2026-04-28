@@ -46,3 +46,14 @@ Next:
 - Trace surface (plugin init spans, slow handler detection, web request hooks)
 - IConfigurablePlugin support so admins can edit config from the Eco web UI
 - mod.io publication
+
+---
+
+## Post-push follow-up (auto-schedule)
+
+Per the workspace "Default to proactive scheduling" rule: after pushing to `main`, schedule a wake-up to verify the build + release + on-host install landed on kai-server. CI builds the .NET assembly, the deploy step ssh-installs into `/home/kai/Steam/steamapps/common/EcoServer/Mods/UserCode/EcoTelemetry/` (no sudo, NoSudo path), then the running Eco server picks up the mod on next reload.
+
+- **Cadence**: 360s after push. Build is small; install is an scp + script run.
+- **Verify CI**: `coily gh run list --repo coilysiren/eco-telemetry --limit 1` should show `completed/success`. Re-schedule once at +180s if in progress; stop on failure.
+- **Verify install**: `coily ssh kai-server ls /home/kai/Steam/steamapps/common/EcoServer/Mods/UserCode/EcoTelemetry/` should show the freshly written assembly. Compare mtime to the push time; mismatched mtime means the deploy didn't run.
+- **Eco server reload**: the mod takes effect after the running Eco server reloads (server restart or in-game `/reload` by an admin). Don't trigger that automatically; just note in the wake-up summary that a reload is pending if the assembly is fresh but telemetry hasn't updated.
