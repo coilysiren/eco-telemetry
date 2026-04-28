@@ -2,7 +2,7 @@ name: release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
 
 permissions:
   contents: write
@@ -10,8 +10,6 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    env:
-      REF_NAME: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -23,20 +21,30 @@ jobs:
       - name: Build
         run: dotnet build EcoTelemetry.csproj -c Release
 
-      - name: Stage release artifact
+      - name: Compute version
+        id: version
         run: |
           set -euo pipefail
-          version="${REF_NAME#v}"
+          version="$(date -u +%Y.%m.%d).${GITHUB_RUN_NUMBER}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Stage release artifact
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
           stage="staging/EcoTelemetry"
           mkdir -p "$stage"
           cp -r bin/Release/net10.0/. "$stage/"
           cp Configs/EcoTelemetry.example.json "$stage/"
           cp README.md LICENSE "$stage/"
-          (cd staging && zip -r "../EcoTelemetry-${version}.zip" EcoTelemetry)
-          ls -la "EcoTelemetry-${version}.zip"
+          (cd staging && zip -r "../EcoTelemetry-${VERSION}.zip" EcoTelemetry)
+          ls -la "EcoTelemetry-${VERSION}.zip"
 
-      - name: Upload to release
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
           files: EcoTelemetry-*.zip
           generate_release_notes: true
