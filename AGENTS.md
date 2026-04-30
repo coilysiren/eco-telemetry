@@ -6,7 +6,7 @@ See `../AGENTS.md` for workspace-level conventions (git workflow, writing voice,
 
 ## EcoTelemetry
 
-OpenTelemetry observability mod for Eco. Public repo on GitHub.
+OpenTelemetry o11y mod for Eco. Public repo on GitHub.
 
 ## Build
 
