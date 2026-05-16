@@ -16,7 +16,5 @@ catalog:
   owner: kai
   lifecycle: production
   description: "OpenTelemetry observability mod for Eco game servers."
-  dependsOn:
-    - coilysiren/otel-a2a-relay
   providesApis:
     - eco-otel-spans
